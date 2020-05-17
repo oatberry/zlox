@@ -14,8 +14,8 @@ constants: ArrayList(Value),
 lines: ArrayList(usize),
 
 pub const OpCode = enum(u8) {
-    Return,
     Constant,
+    Return,
     _, // makes enum non-exhaustive.
 };
 

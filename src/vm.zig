@@ -38,12 +38,14 @@ pub fn interpret(chunk: *Chunk, debugMode: DebugMode, allocator: *Allocator) !In
 fn run(self: *Self) !InterpretResult {
     while (true) {
         if (self.debugMode) {
+            // Dump stack
             std.debug.warn("          ", .{});
             for (self.chunk.constants.items) |constant| {
                 std.debug.warn("[{}]", .{constant});
             }
             std.debug.warn("\n", .{});
 
+            // show current instruction
             _ = debug.disassembleInstruction(
                 self.chunk,
                 std.io.getStdErr().outStream(),
@@ -55,17 +57,14 @@ fn run(self: *Self) !InterpretResult {
         self.ip += 1;
 
         switch (instruction) {
-            .Return => {
-                const value = self.pop() orelse {
-                    std.debug.warn("Error: stack underflow\n", .{});
-                    return .RuntimeError;
-                };
-                std.debug.warn("result: {}\n", .{value});
-                return .Ok;
-            },
             .Constant => {
                 const constant = self.chunk.readConstant(self.ip);
                 try self.push(constant);
+            },
+            .Return => {
+                const value = try self.pop();
+                std.debug.warn("result: {}\n", .{value});
+                return .Ok;
             },
 
             _ => std.debug.warn(
@@ -80,6 +79,9 @@ fn push(self: *Self, value: Value) !void {
     return self.stack.append(value);
 }
 
-fn pop(self: *Self) ?Value {
-    return self.stack.popOrNull();
+fn pop(self: *Self) !Value {
+    return self.stack.popOrNull() orelse {
+        std.debug.warn("Error: stack underflow\n", .{});
+        return .RuntimeError;
+    };
 }
