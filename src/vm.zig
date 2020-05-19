@@ -14,11 +14,14 @@ const OpCode = Chunk.OpCode;
 chunk: *Chunk, // bytecode
 ip: usize = 0, // current bytecode offset
 stack: ArrayList(Value), // working value stack
-
-debugMode: bool = false, // print diagnostics while running?
-
-const InterpretResult = enum {
+debug_mode: bool = false, // print diagnostics while running?
+error_code: enum {
     Ok,
+    StackUnderflow,
+} = .Ok,
+
+pub const LoxError = error{
+    OutOfMemory,
     CompileError,
     RuntimeError,
 };
@@ -27,17 +30,9 @@ pub fn init(chunk: *Chunk, allocator: *Allocator) Self {
     return .{ .chunk = chunk, .stack = ArrayList(Value).init(allocator) };
 }
 
-const DebugMode = enum { Debug, NoDebug };
-
-pub fn interpret(chunk: *Chunk, debugMode: DebugMode, allocator: *Allocator) !InterpretResult {
-    var vm = Self.init(chunk, allocator);
-    vm.debugMode = debugMode == .Debug;
-    return vm.run();
-}
-
-fn run(self: *Self) !InterpretResult {
+fn run(self: *Self) LoxError!void {
     while (true) {
-        if (self.debugMode) {
+        if (self.debug_mode) {
             // Dump stack
             std.debug.warn("          ", .{});
             for (self.chunk.constants.items) |constant| {
@@ -60,11 +55,13 @@ fn run(self: *Self) !InterpretResult {
             .Constant => {
                 const constant = self.chunk.readConstant(self.ip);
                 try self.push(constant);
+                self.ip += @sizeOf(usize); // the constant takes up same size as a `usize`
             },
+
             .Return => {
                 const value = try self.pop();
                 std.debug.warn("result: {}\n", .{value});
-                return .Ok;
+                return;
             },
 
             _ => std.debug.warn(
@@ -82,6 +79,7 @@ fn push(self: *Self, value: Value) !void {
 fn pop(self: *Self) !Value {
     return self.stack.popOrNull() orelse {
         std.debug.warn("Error: stack underflow\n", .{});
-        return .RuntimeError;
+        self.error_code = .StackUnderflow;
+        return LoxError.RuntimeError;
     };
 }
