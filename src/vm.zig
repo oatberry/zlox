@@ -30,17 +30,25 @@ pub fn init(chunk: *Chunk, allocator: *Allocator) Self {
     return .{ .chunk = chunk, .stack = ArrayList(Value).init(allocator) };
 }
 
-fn run(self: *Self) LoxError!void {
+pub fn deinit(self: *Self) void {
+    self.chunk.deinit();
+    self.stack.deinit();
+}
+
+pub fn run(self: *Self) LoxError!?Value {
     while (true) {
+        // If we've hit the end of the bytecode, no value is returned.
+        if (self.ip >= self.chunk.code.items.len)
+            return null;
+
+        // When in debug mode, print the stack and disassemble the current instruction.
         if (self.debug_mode) {
-            // Dump stack
             std.debug.warn("          ", .{});
             for (self.chunk.constants.items) |constant| {
                 std.debug.warn("[{}]", .{constant});
             }
             std.debug.warn("\n", .{});
 
-            // show current instruction
             _ = debug.disassembleInstruction(
                 self.chunk,
                 std.io.getStdErr().outStream(),
@@ -58,11 +66,10 @@ fn run(self: *Self) LoxError!void {
                 self.ip += @sizeOf(usize); // the constant takes up same size as a `usize`
             },
 
-            .Return => {
-                const value = try self.pop();
-                std.debug.warn("result: {}\n", .{value});
-                return;
-            },
+            .Negate => try self.push(-(try self.pop())),
+
+            // need `try` since it looks like `!T` can't be coerced to `!?T`
+            .Return => return try self.pop(),
 
             _ => std.debug.warn(
                 "Unknown instruction: 0x{x:0>2}\n",
@@ -82,4 +89,55 @@ fn pop(self: *Self) !Value {
         self.error_code = .StackUnderflow;
         return LoxError.RuntimeError;
     };
+}
+
+const testing = std.testing;
+
+test "OP_CONSTANT" {
+    const allocator = testing.allocator;
+    var chunk = Chunk.init(allocator);
+    var vm = Self.init(&chunk, allocator);
+    defer vm.deinit();
+
+    try chunk.writeConst(1.2, 0);
+    testing.expectEqual(@as(?Value, null), try vm.run());
+    testing.expectEqualSlices(
+        Value,
+        &[_]Value{1.2},
+        vm.stack.items,
+    );
+}
+
+test "OP_NEGATIVE" {
+    const allocator = testing.allocator;
+    var chunk = Chunk.init(allocator);
+    var vm = Self.init(&chunk, allocator);
+    defer vm.deinit();
+
+    const inf = std.math.inf(f64);
+    const nan = std.math.nan(f64);
+
+    try chunk.writeConst(1.2, 0);
+    try chunk.writeOp(.Negate, 0);
+    try chunk.writeConst(0, 0);
+    try chunk.writeOp(.Negate, 0);
+    try chunk.writeConst(-inf, 0);
+    try chunk.writeOp(.Negate, 0);
+    testing.expectEqual(@as(?Value, null), try vm.run());
+    testing.expectEqualSlices(
+        Value,
+        &[_]Value{ -1.2, 0, inf },
+        vm.stack.items,
+    );
+}
+
+test "OP_RETURN" {
+    const allocator = testing.allocator;
+    var chunk = Chunk.init(allocator);
+    var vm = Self.init(&chunk, allocator);
+    defer vm.deinit();
+
+    try chunk.writeConst(1.2, 0);
+    try chunk.writeOp(.Return, 0);
+    testing.expectEqual(@as(?Value, 1.2), try vm.run());
 }

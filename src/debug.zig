@@ -25,6 +25,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, out_stream: var, offset: usiz
     const byte = chunk.read(offset);
     switch (@intToEnum(OpCode, byte)) {
         .Constant => return constantInstruction(out_stream, "OP_CONSTANT", chunk, offset),
+        .Negate => return simpleInstruction(out_stream, "OP_NEGATE", offset),
         .Return => return simpleInstruction(out_stream, "OP_RETURN", offset),
         _ => {
             try out_stream.print("Unknown opcode 0x{x:0>2}\n", .{byte});

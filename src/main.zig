@@ -16,13 +16,19 @@ pub fn main() anyerror!void {
     var chunk = Chunk.init(allocator);
 
     try chunk.writeConst(1.2, 123);
-    try chunk.writeOp(.Return, 123);
+    try chunk.writeOp(.Negate, 123);
+    try chunk.writeOp(.Return, 124);
 
     var vm = VM.init(&chunk, allocator);
     vm.debug_mode = true;
-    vm.run() catch |err| switch (err) {
-        error.CompileError => std.debug.warn("Compile Error: {}\n", .{@tagName(vm.error_code)}),
-        error.RuntimeError => std.debug.warn("Runtime Error: {}\n", .{@tagName(vm.error_code)}),
-        else => return err,
+    const result = vm.run() catch |err| {
+        switch (err) {
+            error.CompileError => std.debug.warn("Compile Error: {}\n", .{@tagName(vm.error_code)}),
+            error.RuntimeError => std.debug.warn("Runtime Error: {}\n", .{@tagName(vm.error_code)}),
+            else => return err,
+        }
+        return;
     };
+
+    std.debug.warn("VM returned: {}\n", .{result});
 }

@@ -15,6 +15,7 @@ lines: ArrayList(usize),
 
 pub const OpCode = enum(u8) {
     Constant,
+    Negate,
     Return,
     _, // makes enum non-exhaustive.
 };
@@ -25,6 +26,12 @@ pub fn init(allocator: *Allocator) Self {
         .constants = ArrayList(Value).init(allocator),
         .lines = ArrayList(usize).init(allocator),
     };
+}
+
+pub fn deinit(self: *Self) void {
+    self.code.deinit();
+    self.constants.deinit();
+    self.lines.deinit();
 }
 
 /// Read a byte from an offset into the bytecode.
@@ -84,7 +91,7 @@ pub fn writeByte(self: *Self, byte: u8, line: usize) !void {
 /// Disassemble the chunk into human-readable text on an OutStream.
 pub const disassemble = debug.disassembleChunk;
 
-test "constant instruction" {
+test "OP_CONSTANT disassembly" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = &arena.allocator;
