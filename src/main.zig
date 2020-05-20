@@ -1,9 +1,7 @@
 const std = @import("std");
-const io = std.io;
 
 const VM = @import("vm.zig");
 const Chunk = @import("chunk.zig");
-const OpCode = Chunk.OpCode;
 
 pub fn main() anyerror!void {
     // using an Arena Allocator on recommendation of the language ref??

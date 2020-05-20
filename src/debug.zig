@@ -1,5 +1,4 @@
 const std = @import("std");
-const mem = std.mem;
 
 const Chunk = @import("chunk.zig");
 const OpCode = Chunk.OpCode;

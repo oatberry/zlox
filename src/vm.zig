@@ -3,7 +3,6 @@ const Self = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const File = std.fs.File;
 
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig");
