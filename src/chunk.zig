@@ -15,6 +15,10 @@ lines: ArrayList(usize),
 
 pub const OpCode = enum(u8) {
     Constant,
+    // Add,
+    // Subtract,
+    // Multiply,
+    // Divide,
     Negate,
     Return,
     _, // makes enum non-exhaustive.
@@ -32,6 +36,12 @@ pub fn deinit(self: *Self) void {
     self.code.deinit();
     self.constants.deinit();
     self.lines.deinit();
+}
+
+pub fn reset(self: *Self) void {
+    self.code.items.len = 0;
+    self.constants.items.len = 0;
+    self.lines.items.len = 0;
 }
 
 /// Read a byte from an offset into the bytecode.

@@ -1,32 +1,75 @@
 const std = @import("std");
+const process = std.process;
+const Allocator = std.mem.Allocator;
 
 const VM = @import("vm.zig");
-const Chunk = @import("chunk.zig");
 
-pub fn main() anyerror!void {
-    // using an Arena Allocator on recommendation of the language ref??
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = &arena.allocator;
+pub fn main() !u8 {
+    const allocator = std.heap.page_allocator;
 
-    const args: [][]u8 = try std.process.argsAlloc(allocator);
+    const args: [][]u8 = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, args);
 
-    var chunk = Chunk.init(allocator);
+    var exit_code: u8 = 0;
 
-    try chunk.writeConst(1.2, 123);
-    try chunk.writeOp(.Negate, 123);
-    try chunk.writeOp(.Return, 124);
+    if (args.len == 1) {
+        try repl(allocator);
+    } else if (args.len == 2) {
+        exit_code = try runFile(allocator, args[1]);
+    } else {
+        std.debug.warn("Usage: {} [path]\n", .{args[0]});
+        exit_code = 1;
+    }
 
-    var vm = VM.init(&chunk, allocator);
-    vm.debug_mode = true;
-    const result = vm.run() catch |err| {
-        switch (err) {
-            error.CompileError => std.debug.warn("Compile Error: {}\n", .{@tagName(vm.error_code)}),
-            error.RuntimeError => std.debug.warn("Runtime Error: {}\n", .{@tagName(vm.error_code)}),
-            else => return err,
-        }
-        return;
+    return exit_code;
+}
+
+fn repl(allocator: *Allocator) !void {
+    var vm = VM.init(allocator);
+    defer vm.deinit();
+
+    const stderr = std.io.getStdErr().outStream();
+    const stdin = std.io.getStdIn().inStream();
+
+    try stderr.writeAll(" /// zlox ///\n");
+    while (true) {
+        try stderr.writeAll(">>> ");
+        const input = stdin.readUntilDelimiterAlloc(allocator, '\n', 4096) catch |err| {
+            switch (err) {
+                error.EndOfStream => return,
+                else => return err,
+            }
+        };
+        defer allocator.free(input);
+
+        vm.interpret(input) catch |err| {
+            std.debug.warn("Error: VM returned error: {}", .{@errorName(err)});
+        };
+    }
+}
+
+fn runFile(allocator: *Allocator, filename: []const u8) !u8 {
+    const source = readFile(allocator, filename) catch |err| {
+        std.debug.warn("Could not open {}: {}", .{ filename, @errorName(err) });
+        return 74;
     };
+    defer allocator.free(source);
 
-    std.debug.warn("VM returned: {}\n", .{result});
+    var vm = VM.init(allocator);
+    defer vm.deinit();
+
+    vm.interpret(source) catch |err| switch (err) {
+        error.CompileError => return 65,
+        error.RuntimeError => return 70,
+        else => return err,
+    };
+    return 0;
+}
+
+fn readFile(allocator: *Allocator, path: []const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(path, .{});
+    const file_size = try file.getEndPos();
+    const buffer = try allocator.alloc(u8, file_size);
+    _ = try file.read(buffer);
+    return buffer;
 }

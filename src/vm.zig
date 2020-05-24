@@ -4,20 +4,17 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const compile = @import("compiler.zig").compile;
 const debug = @import("debug.zig");
 const Chunk = @import("chunk.zig");
 const Value = @import("value.zig").Value;
 const OpCode = Chunk.OpCode;
 
 /// VM struct
-chunk: *Chunk, // bytecode
+chunk: Chunk, // bytecode
 ip: usize = 0, // current bytecode offset
 stack: ArrayList(Value), // working value stack
 debug_mode: bool = false, // print diagnostics while running?
-error_code: enum {
-    Ok,
-    StackUnderflow,
-} = .Ok,
 
 pub const LoxError = error{
     OutOfMemory,
@@ -25,13 +22,19 @@ pub const LoxError = error{
     RuntimeError,
 };
 
-pub fn init(chunk: *Chunk, allocator: *Allocator) Self {
+pub fn init(allocator: *Allocator) Self {
+    const chunk = Chunk.init(allocator);
     return .{ .chunk = chunk, .stack = ArrayList(Value).init(allocator) };
 }
 
 pub fn deinit(self: *Self) void {
     self.chunk.deinit();
     self.stack.deinit();
+}
+
+pub fn interpret(self: *Self, source: []const u8) !void {
+    self.chunk.reset();
+    try compile(source, &self.chunk);
 }
 
 pub fn run(self: *Self) LoxError!?Value {
@@ -49,7 +52,7 @@ pub fn run(self: *Self) LoxError!?Value {
             std.debug.warn("\n", .{});
 
             _ = debug.disassembleInstruction(
-                self.chunk,
+                &self.chunk,
                 std.io.getStdErr().outStream(),
                 self.ip,
             ) catch 0;
@@ -65,6 +68,11 @@ pub fn run(self: *Self) LoxError!?Value {
                 self.ip += @sizeOf(usize); // the constant takes up same size as a `usize`
             },
 
+            // .Add => try self.binaryOp(add),
+            // .Subtract => try self.binaryOp(sub),
+            // .Multiply => try self.binaryOp(mul),
+            // .Divide => try self.binaryOp(div),
+
             .Negate => try self.push(-(try self.pop())),
 
             // need `try` since it looks like `!T` can't be coerced to `!?T`
@@ -78,6 +86,29 @@ pub fn run(self: *Self) LoxError!?Value {
     }
 }
 
+// fn add(a: Value, b: Value) Value {
+//     return a + b;
+// }
+
+// fn sub(a: Value, b: Value) Value {
+//     return a - b;
+// }
+
+// fn mul(a: Value, b: Value) Value {
+//     return a * b;
+// }
+
+// fn div(a: Value, b: Value) Value {
+//     return a / b;
+// }
+
+// fn binaryOp(self: *Self, mathFn: fn (a: Value, b: Value) Value) !void {
+//     const b = try self.pop();
+//     const a = try self.pop();
+//     const result = mathFn(a, b);
+//     try self.push(result);
+// }
+
 fn push(self: *Self, value: Value) !void {
     return self.stack.append(value);
 }
@@ -85,7 +116,6 @@ fn push(self: *Self, value: Value) !void {
 fn pop(self: *Self) !Value {
     return self.stack.popOrNull() orelse {
         std.debug.warn("Error: stack underflow\n", .{});
-        self.error_code = .StackUnderflow;
         return LoxError.RuntimeError;
     };
 }
@@ -94,49 +124,42 @@ const testing = std.testing;
 
 test "OP_CONSTANT" {
     const allocator = testing.allocator;
-    var chunk = Chunk.init(allocator);
-    var vm = Self.init(&chunk, allocator);
+    var vm = Self.init(allocator);
+    var chunk = &vm.chunk;
     defer vm.deinit();
 
     try chunk.writeConst(1.2, 0);
     testing.expectEqual(@as(?Value, null), try vm.run());
-    testing.expectEqualSlices(
-        Value,
-        &[_]Value{1.2},
-        vm.stack.items,
-    );
-}
-
-test "OP_NEGATIVE" {
-    const allocator = testing.allocator;
-    var chunk = Chunk.init(allocator);
-    var vm = Self.init(&chunk, allocator);
-    defer vm.deinit();
-
-    const inf = std.math.inf(f64);
-    const nan = std.math.nan(f64);
-
-    try chunk.writeConst(1.2, 0);
-    try chunk.writeOp(.Negate, 0);
-    try chunk.writeConst(0, 0);
-    try chunk.writeOp(.Negate, 0);
-    try chunk.writeConst(-inf, 0);
-    try chunk.writeOp(.Negate, 0);
-    testing.expectEqual(@as(?Value, null), try vm.run());
-    testing.expectEqualSlices(
-        Value,
-        &[_]Value{ -1.2, 0, inf },
-        vm.stack.items,
-    );
+    testing.expectEqualSlices(Value, &[_]Value{1.2}, vm.stack.items);
 }
 
 test "OP_RETURN" {
     const allocator = testing.allocator;
-    var chunk = Chunk.init(allocator);
-    var vm = Self.init(&chunk, allocator);
+    var vm = Self.init(allocator);
+    var chunk = &vm.chunk;
     defer vm.deinit();
 
     try chunk.writeConst(1.2, 0);
     try chunk.writeOp(.Return, 0);
     testing.expectEqual(@as(?Value, 1.2), try vm.run());
+}
+
+test "arithmetic" {
+    const allocator = testing.allocator;
+    var vm = Self.init(allocator);
+    var chunk = &vm.chunk;
+    defer vm.deinit();
+
+    // (-1.3 + 3.14) * 2 / 3
+    try chunk.writeConst(1.2, 0);
+    try chunk.writeOp(.Negate, 0);
+    // try chunk.writeConst(3.14, 0);
+    // try chunk.writeOp(.Add, 0);
+    // try chunk.writeConst(2, 0);
+    // try chunk.writeOp(.Multiply, 0);
+    // try chunk.writeConst(3, 0);
+    // try chunk.writeOp(.Divide, 0);
+    try chunk.writeOp(.Return, 0);
+    // testing.expectEqual(@as(?Value, 1.2933333333333334), try vm.run());
+    testing.expectEqual(@as(?Value, -1.2), try vm.run());
 }
