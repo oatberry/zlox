@@ -24,6 +24,10 @@ pub fn disassembleInstruction(chunk: *const Chunk, out_stream: var, offset: usiz
     const byte = chunk.read(offset);
     switch (@intToEnum(OpCode, byte)) {
         .Constant => return constantInstruction(out_stream, "OP_CONSTANT", chunk, offset),
+        .Add => return simpleInstruction(out_stream, "OP_ADD", offset),
+        .Subtract => return simpleInstruction(out_stream, "OP_SUBTRACT", offset),
+        .Multiply => return simpleInstruction(out_stream, "OP_MULTIPLY", offset),
+        .Divide => return simpleInstruction(out_stream, "OP_DIVIDE", offset),
         .Negate => return simpleInstruction(out_stream, "OP_NEGATE", offset),
         .Return => return simpleInstruction(out_stream, "OP_RETURN", offset),
         _ => {

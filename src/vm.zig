@@ -68,10 +68,10 @@ pub fn run(self: *Self) LoxError!?Value {
                 self.ip += @sizeOf(usize); // the constant takes up same size as a `usize`
             },
 
-            // .Add => try self.binaryOp(add),
-            // .Subtract => try self.binaryOp(sub),
-            // .Multiply => try self.binaryOp(mul),
-            // .Divide => try self.binaryOp(div),
+            .Add => try self.binaryOp(add),
+            .Subtract => try self.binaryOp(sub),
+            .Multiply => try self.binaryOp(mul),
+            .Divide => try self.binaryOp(div),
 
             .Negate => try self.push(-(try self.pop())),
 
@@ -86,28 +86,28 @@ pub fn run(self: *Self) LoxError!?Value {
     }
 }
 
-// fn add(a: Value, b: Value) Value {
-//     return a + b;
-// }
+fn add(a: Value, b: Value) Value {
+    return a + b;
+}
 
-// fn sub(a: Value, b: Value) Value {
-//     return a - b;
-// }
+fn sub(a: Value, b: Value) Value {
+    return a - b;
+}
 
-// fn mul(a: Value, b: Value) Value {
-//     return a * b;
-// }
+fn mul(a: Value, b: Value) Value {
+    return a * b;
+}
 
-// fn div(a: Value, b: Value) Value {
-//     return a / b;
-// }
+fn div(a: Value, b: Value) Value {
+    return a / b;
+}
 
-// fn binaryOp(self: *Self, mathFn: fn (a: Value, b: Value) Value) !void {
-//     const b = try self.pop();
-//     const a = try self.pop();
-//     const result = mathFn(a, b);
-//     try self.push(result);
-// }
+fn binaryOp(self: *Self, mathFn: fn (a: Value, b: Value) Value) !void {
+    const b = try self.pop();
+    const a = try self.pop();
+    const result = mathFn(a, b);
+    try self.push(result);
+}
 
 fn push(self: *Self, value: Value) !void {
     return self.stack.append(value);
@@ -153,13 +153,12 @@ test "arithmetic" {
     // (-1.3 + 3.14) * 2 / 3
     try chunk.writeConst(1.2, 0);
     try chunk.writeOp(.Negate, 0);
-    // try chunk.writeConst(3.14, 0);
-    // try chunk.writeOp(.Add, 0);
-    // try chunk.writeConst(2, 0);
-    // try chunk.writeOp(.Multiply, 0);
-    // try chunk.writeConst(3, 0);
-    // try chunk.writeOp(.Divide, 0);
+    try chunk.writeConst(3.14, 0);
+    try chunk.writeOp(.Add, 0);
+    try chunk.writeConst(2, 0);
+    try chunk.writeOp(.Multiply, 0);
+    try chunk.writeConst(3, 0);
+    try chunk.writeOp(.Divide, 0);
     try chunk.writeOp(.Return, 0);
-    // testing.expectEqual(@as(?Value, 1.2933333333333334), try vm.run());
-    testing.expectEqual(@as(?Value, -1.2), try vm.run());
+    testing.expectEqual(@as(?Value, 1.2933333333333334), try vm.run());
 }
